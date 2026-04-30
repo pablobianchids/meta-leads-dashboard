@@ -1,4 +1,9 @@
-require('dotenv').config();
+const path = require('path');
+const CLIENT = process.env.CLIENT;
+const envPath = CLIENT
+  ? path.resolve(__dirname, `clients/${CLIENT}.env`)
+  : path.resolve(__dirname, '.env');
+require('dotenv').config({ path: envPath });
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
@@ -79,10 +84,60 @@ app.get('/api/daily', async (req, res) => {
   }
 });
 
+app.get('/api/ads', async (req, res) => {
+  const { date_preset = 'last_30d' } = req.query;
+  try {
+    const [adsData, insightsData] = await Promise.all([
+      axios.get(`${BASE}/act_${ACCOUNT}/ads`, {
+        params: {
+          access_token: TOKEN,
+          effective_status: JSON.stringify(['ACTIVE']),
+          fields: 'id,name,adset_name,campaign_name',
+          limit: 12
+        }
+      }),
+      axios.get(`${BASE}/act_${ACCOUNT}/insights`, {
+        params: {
+          access_token: TOKEN,
+          fields: `ad_id,impressions,reach,clicks,spend,actions,cost_per_result,ctr,frequency`,
+          date_preset,
+          level: 'ad'
+        }
+      })
+    ]);
+
+    const ads = adsData.data.data || [];
+
+    const insightsMap = {};
+    for (const item of insightsData.data.data || []) {
+      insightsMap[item.ad_id] = item;
+    }
+
+    const withData = await Promise.all(
+      ads.map(async (ad) => {
+        let preview = null;
+        try {
+          const { data: prev } = await axios.get(`${BASE}/${ad.id}/previews`, {
+            params: { access_token: TOKEN, ad_format: 'MOBILE_FEED_STANDARD' }
+          });
+          preview = prev.data?.[0]?.body || null;
+        } catch {}
+
+        return { ...ad, preview, insights: insightsMap[ad.id] || null };
+      })
+    );
+
+    res.json({ data: withData });
+  } catch (err) {
+    res.status(500).json({ error: err.response?.data?.error || err.message });
+  }
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     configured: !!(TOKEN && ACCOUNT),
+    clientName: process.env.CLIENT_NAME || 'Meta Leads Dashboard',
     timestamp: new Date().toISOString()
   });
 });

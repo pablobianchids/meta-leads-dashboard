@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from './components/Header';
 import KPICard from './components/KPICard';
 import LeadsChart from './components/LeadsChart';
 import CampaignTable from './components/CampaignTable';
+import AdPreviews from './components/AdPreviews';
 import { useDashboard } from './hooks/useDashboard';
+import { fetchConfig } from './services/api';
 import { currency, number, percent } from './utils/format';
 
 const buildKPIs = (ov) => [
@@ -53,11 +55,17 @@ const buildKPIs = (ov) => [
 
 export default function App() {
   const [datePreset, setDatePreset] = useState('last_30d');
+  const [clientName, setClientName] = useState('Meta Leads Dashboard');
   const { overview, campaigns, daily, loading, error, lastUpdated, refetch } = useDashboard(datePreset);
+
+  useEffect(() => {
+    fetchConfig().then(d => { if (d.clientName) setClientName(d.clientName); });
+  }, []);
 
   return (
     <div className="app">
       <Header
+        clientName={clientName}
         datePreset={datePreset}
         onDateChange={setDatePreset}
         lastUpdated={lastUpdated}
@@ -88,6 +96,8 @@ export default function App() {
             <LeadsChart data={daily} />
 
             <CampaignTable campaigns={campaigns} />
+
+            <AdPreviews datePreset={datePreset} />
           </>
         )}
       </main>

@@ -6,7 +6,7 @@ const DATE_OPTIONS = [
   { value: 'last_month', label: 'Mês anterior' },
 ];
 
-export default function Header({ datePreset, onDateChange, lastUpdated, loading, onRefresh }) {
+export default function Header({ clientName, datePreset, onDateChange, lastUpdated, loading, onRefresh }) {
   const formatTime = (d) =>
     d?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
@@ -22,7 +22,7 @@ export default function Header({ datePreset, onDateChange, lastUpdated, loading,
             />
           </svg>
           <div>
-            <h1>Meta Leads Dashboard</h1>
+            <h1>{clientName}</h1>
             <p>Geração de Leads em tempo real</p>
           </div>
         </div>
