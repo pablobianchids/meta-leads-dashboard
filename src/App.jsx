@@ -1,106 +1,183 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { Users, DollarSign, Wallet, MousePointerClick, Eye, Target, Loader2 } from 'lucide-react';
 import Header from './components/Header';
+import Sidebar from './components/Sidebar';
 import KPICard from './components/KPICard';
-import LeadsChart from './components/LeadsChart';
+import InsightsCards from './components/InsightsCards';
+import GeoTable from './components/GeoTable';
 import CampaignTable from './components/CampaignTable';
 import AdPreviews from './components/AdPreviews';
+
+// MapChart é pesado (~1MB do maplibre-gl), lazy-load reduz o bundle inicial
+const MapChart = lazy(() => import('./components/MapChart'));
 import { useDashboard } from './hooks/useDashboard';
-import { fetchConfig } from './services/api';
+import { useAds } from './hooks/useAds';
+import { useI18n } from './hooks/useI18n';
+import { fetchClients } from './services/api';
 import { currency, number, percent } from './utils/format';
 
-const buildKPIs = (ov) => [
-  {
-    title: 'Leads Gerados',
-    value: number(ov?.leads),
-    subtitle: 'Total no período',
-    color: '#1877F2',
-    icon: '👤'
-  },
-  {
-    title: 'Custo por Lead',
-    value: ov?.cpl > 0 ? currency(ov.cpl) : '—',
-    subtitle: 'CPL médio',
-    color: '#00c853',
-    icon: '💰'
-  },
-  {
-    title: 'Gasto Total',
-    value: currency(ov?.spend),
-    subtitle: 'Investimento no período',
-    color: '#ffb300',
-    icon: '📊'
-  },
-  {
-    title: 'CTR',
-    value: percent(ov?.ctr),
-    subtitle: 'Taxa de clique',
-    color: '#7c4dff',
-    icon: '🖱️'
-  },
-  {
-    title: 'Impressões',
-    value: number(ov?.impressions),
-    subtitle: 'Total de exibições',
-    color: '#00bcd4',
-    icon: '👁️'
-  },
-  {
-    title: 'Alcance',
-    value: number(ov?.reach),
-    subtitle: 'Pessoas únicas impactadas',
-    color: '#ff6b6b',
-    icon: '📡'
-  },
+const KPI_DEFS = [
+  { titleKey: 'kpi_leads_title',       helpKey: 'kpi_leads_help',       icon: Users,             metricKind: 'higher-better', valueKey: 'leads',       format: number },
+  { titleKey: 'kpi_cpl_title',         helpKey: 'kpi_cpl_help',         icon: DollarSign,        metricKind: 'lower-better',  valueKey: 'cpl',         format: (v) => v > 0 ? currency(v) : '—' },
+  { titleKey: 'kpi_spend_title',       helpKey: 'kpi_spend_help',       icon: Wallet,            metricKind: 'neutral',       valueKey: 'spend',       format: currency },
+  { titleKey: 'kpi_ctr_title',         helpKey: 'kpi_ctr_help',         icon: MousePointerClick, metricKind: 'higher-better', valueKey: 'ctr',         format: percent },
+  { titleKey: 'kpi_impressions_title', helpKey: 'kpi_impressions_help', icon: Eye,               metricKind: 'higher-better', valueKey: 'impressions', format: number },
+  { titleKey: 'kpi_reach_title',       helpKey: 'kpi_reach_help',       icon: Target,            metricKind: 'higher-better', valueKey: 'reach',       format: number }
 ];
 
+// Restaura preset/range salvos para sobreviver entre sessões
+const initialDateState = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('dateState') || 'null');
+    if (saved?.preset) return saved;
+  } catch {}
+  return { preset: 'last_30d', customRange: null };
+};
+
 export default function App() {
-  const [datePreset, setDatePreset] = useState('last_30d');
-  const [clientName, setClientName] = useState('Meta Leads Dashboard');
-  const { overview, campaigns, daily, loading, error, lastUpdated, refetch } = useDashboard(datePreset);
+  const [{ preset: datePreset, customRange }, setDateState] = useState(initialDateState);
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(() => localStorage.getItem('selectedClient'));
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('sidebarCollapsed') === '1'
+  );
+  const { t } = useI18n();
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('sidebarCollapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  };
+
+  const handleDateChange = ({ preset, customRange }) => {
+    const next = { preset, customRange };
+    setDateState(next);
+    try { localStorage.setItem('dateState', JSON.stringify(next)); } catch {}
+  };
+
+  const { overview, trend, campaigns, geo, loading, error, lastUpdated, refetch } = useDashboard(datePreset, selectedClient, customRange);
+  const { ads, loading: adsLoading, error: adsError, rateLimited: adsRateLimited, tokenExpired: adsTokenExpired } = useAds(datePreset, selectedClient, customRange);
+
+  const isTokenExpired = adsTokenExpired || (error && error.includes(t('tokenExpiredTitle')));
 
   useEffect(() => {
-    fetchConfig().then(d => { if (d.clientName) setClientName(d.clientName); });
+    fetchClients().then(d => {
+      const list = d.clients || [];
+      setClients(list);
+      if (!selectedClient || !list.find(c => c.slug === selectedClient)) {
+        const initial = d.default || list[0]?.slug;
+        if (initial) {
+          setSelectedClient(initial);
+          localStorage.setItem('selectedClient', initial);
+        }
+      }
+    });
   }, []);
 
+  const handleSelectClient = (slug) => {
+    setSelectedClient(slug);
+    localStorage.setItem('selectedClient', slug);
+  };
+
+  const currentClient = clients.find(c => c.slug === selectedClient);
+
   return (
-    <div className="app">
-      <Header
-        clientName={clientName}
-        datePreset={datePreset}
-        onDateChange={setDatePreset}
-        lastUpdated={lastUpdated}
-        loading={loading}
-        onRefresh={refetch}
+    <div className="relative min-h-screen z-10">
+      <Sidebar
+        clients={clients}
+        selected={selectedClient}
+        onSelect={handleSelectClient}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebar}
       />
 
-      <main className="dashboard">
-        {error && (
-          <div className="error-banner">
-            <strong>Erro ao carregar dados:</strong> {error}
-          </div>
-        )}
+      <div
+        className={`max-w-[1480px] px-4 lg:px-6 pt-16 lg:pt-0 pb-12 transition-[margin] duration-300 ease-out ${
+          sidebarCollapsed ? 'lg:ml-[64px]' : 'lg:ml-[240px]'
+        }`}
+      >
+        <Header
+          clientName={currentClient?.name || 'Performance'}
+          datePreset={datePreset}
+          customRange={customRange}
+          onDateChange={handleDateChange}
+          lastUpdated={lastUpdated}
+          loading={loading}
+          onRefresh={refetch}
+        />
 
-        {loading && !overview ? (
-          <div className="loading-state">
-            <div className="spinner" />
-            <p>Carregando dados da Meta API...</p>
-          </div>
-        ) : (
-          <>
-            <div className="kpi-grid">
-              {buildKPIs(overview).map(kpi => (
-                <KPICard key={kpi.title} {...kpi} />
-              ))}
+        <main className="space-y-5">
+          {isTokenExpired ? (
+            <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-sm text-amber-200 flex items-start gap-3">
+              <span className="text-2xl flex-shrink-0">🔑</span>
+              <div>
+                <p className="font-bold mb-1">{t('tokenExpiredTitle')}</p>
+                <p className="text-amber-200/80 text-[13px] leading-relaxed">{t('tokenExpiredDesc')}</p>
+                <p className="text-amber-200/60 text-[12px] mt-2">
+                  Cliente: <strong>{currentClient?.name || selectedClient}</strong>
+                </p>
+              </div>
             </div>
+          ) : error ? (
+            <div className="p-4 rounded-2xl bg-red-500/8 border border-red-500/30 text-sm text-red-300">
+              <strong className="font-semibold">{t('error')}</strong> {error}
+            </div>
+          ) : null}
 
-            <LeadsChart data={daily} />
+          {loading && !overview ? (
+            <div className="flex flex-col items-center justify-center gap-4 py-32 text-white/40">
+              <Loader2 className="w-7 h-7 animate-spin text-emerald" />
+              <p className="text-sm">{t('loadingMeta')}</p>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                {KPI_DEFS.map(def => (
+                  <KPICard
+                    key={def.titleKey}
+                    titleKey={def.titleKey}
+                    helpKey={def.helpKey}
+                    icon={def.icon}
+                    metricKind={def.metricKind}
+                    value={overview ? def.format(overview[def.valueKey]) : null}
+                    trend={trend?.[def.valueKey]}
+                  />
+                ))}
+              </div>
 
-            <CampaignTable campaigns={campaigns} />
+              <InsightsCards overview={overview} ads={ads} />
 
-            <AdPreviews datePreset={datePreset} />
-          </>
-        )}
-      </main>
+              <div className="grid gap-4 grid-cols-1 lg:grid-cols-10">
+                <div className="lg:col-span-3">
+                  <Suspense fallback={
+                    <div className="glass-strong rounded-3xl h-[320px] flex items-center justify-center">
+                      <Loader2 className="w-5 h-5 animate-spin text-white/30" />
+                    </div>
+                  }>
+                    <MapChart regions={geo} />
+                  </Suspense>
+                </div>
+                <div className="lg:col-span-7">
+                  <AdPreviews
+                    datePreset={datePreset}
+                    ads={ads}
+                    loading={adsLoading}
+                    error={adsError}
+                    rateLimited={adsRateLimited}
+                    tokenExpired={adsTokenExpired}
+                  />
+                </div>
+              </div>
+
+              {geo && geo.length > 0 && <GeoTable regions={geo} />}
+
+              <CampaignTable campaigns={campaigns} />
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
