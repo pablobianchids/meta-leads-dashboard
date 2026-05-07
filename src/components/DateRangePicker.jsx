@@ -47,7 +47,7 @@ export default function DateRangePicker({ preset, customRange, onChange }) {
     }
   }, [open]);
 
-  // Click fora / ESC
+  // Click fora / ESC + bloqueio de scroll no mobile (bottom sheet)
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e) => {
@@ -58,9 +58,13 @@ export default function DateRangePicker({ preset, customRange, onChange }) {
     };
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleKey);
+    // Bloqueia scroll no mobile (largura de tela < 640px)
+    const isMobile = window.innerWidth < 640;
+    if (isMobile) document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = '';
     };
   }, [open]);
 
@@ -154,144 +158,157 @@ export default function DateRangePicker({ preset, customRange, onChange }) {
       </button>
 
       {open && (
-        <div
-          role="dialog"
-          aria-label={t('selectRange')}
-          className="absolute right-0 mt-2 z-40 rounded-2xl border border-white/[0.08] shadow-2xl backdrop-blur-2xl overflow-hidden animate-[fadeIn_.12s_ease]"
-          style={{ background: 'rgba(13,13,15,0.97)' }}
-        >
-          <div className="flex flex-col sm:flex-row">
-            {/* Atalhos */}
-            <div className="sm:w-[180px] p-2 sm:border-r border-b sm:border-b-0 border-white/[0.06]">
-              <p className="px-2.5 pt-1.5 pb-2 text-[10px] uppercase tracking-wider font-bold text-white/35">
-                {t('quickRanges')}
+        <>
+          {/* Backdrop apenas no mobile (bottom sheet) */}
+          <div
+            className="sm:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm animate-[fadeIn_.12s_ease]"
+            onClick={() => setOpen(false)}
+          />
+
+          <div
+            role="dialog"
+            aria-label={t('selectRange')}
+            className="
+              z-50 border-white/[0.08] shadow-2xl backdrop-blur-2xl overflow-hidden flex flex-col
+              fixed inset-x-0 bottom-0 max-h-[88vh] rounded-t-3xl border-t animate-[slideUp_.2s_ease]
+              sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-2 sm:max-h-none sm:rounded-2xl sm:border sm:animate-[fadeIn_.12s_ease]
+            "
+            style={{ background: 'rgba(13,13,15,0.97)' }}
+          >
+            {/* Pull handle (mobile only) */}
+            <div className="sm:hidden flex justify-center pt-2.5 pb-1 flex-shrink-0">
+              <span className="w-10 h-1 rounded-full bg-white/15" />
+            </div>
+
+            <div className="flex flex-col sm:flex-row flex-1 min-h-0 overflow-y-auto scroll-thin">
+              {/* Atalhos */}
+              <div className="sm:w-[180px] p-2 sm:border-r border-b sm:border-b-0 border-white/[0.06] flex-shrink-0">
+                <p className="px-2.5 pt-1.5 pb-2 text-[10px] uppercase tracking-wider font-bold text-white/35">
+                  {t('quickRanges')}
+                </p>
+                <div className="grid grid-cols-2 sm:flex sm:flex-col gap-0.5">
+                  {PRESETS.map(p => {
+                    const isActive = preset === p.key;
+                    return (
+                      <button
+                        key={p.key}
+                        onClick={() => handlePreset(p.key)}
+                        className={`text-left px-2.5 py-2 sm:py-1.5 rounded-lg text-[12px] font-medium transition flex items-center justify-between
+                          ${isActive
+                            ? 'bg-emerald/15 text-emerald'
+                            : 'text-white/70 hover:bg-white/[0.04] hover:text-white'}
+                        `}
+                      >
+                        <span className="truncate">{t(p.key)}</span>
+                        {isActive && <Check className="w-3 h-3 flex-shrink-0 ml-1" strokeWidth={3} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Calendário */}
+              <div className="p-3 w-full sm:w-[300px] flex-shrink-0">
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <button
+                    onClick={goPrevMonth}
+                    className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-white/10 hover:border-white/30 text-white/60 hover:text-white flex items-center justify-center transition"
+                    aria-label="Mês anterior"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  </button>
+                  <p className="text-[13px] font-bold tracking-tight capitalize">{monthLabel}</p>
+                  <button
+                    onClick={goNextMonth}
+                    className="w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-white/10 hover:border-white/30 text-white/60 hover:text-white flex items-center justify-center transition"
+                    aria-label="Próximo mês"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-7 gap-y-1 mb-1">
+                  {weekDays.map((d, i) => (
+                    <div key={i} className="text-center text-[9px] font-bold uppercase tracking-wider text-white/35 py-1">
+                      {d}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-0">
+                  {grid.flat().map((date, i) => {
+                    const inCurrentMonth = date.getMonth() === viewMonth.getMonth();
+                    const isToday = sameDay(date, todayFn());
+                    const isStart = sameDay(date, previewStart);
+                    const isEnd = sameDay(date, effectiveEnd);
+                    const inRange = previewStart && effectiveEnd && isBetween(date, previewStart, effectiveEnd);
+                    const isFuture = date > todayFn();
+
+                    let cls = 'h-9 sm:h-8 w-full flex items-center justify-center text-[12px] font-medium relative transition select-none ';
+                    if (isFuture) cls += 'text-white/20 cursor-not-allowed ';
+                    else if (!inCurrentMonth) cls += 'text-white/25 hover:text-white/50 cursor-pointer ';
+                    else cls += 'text-white/85 hover:text-white cursor-pointer ';
+
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={isFuture}
+                        onClick={() => handleDayClick(date)}
+                        onMouseEnter={() => !pickEnd && pickStart && setHoverDate(date)}
+                        className={cls}
+                        aria-label={fmt(date)}
+                        aria-pressed={isStart || isEnd}
+                      >
+                        {inRange && !isStart && !isEnd && (
+                          <span className="absolute inset-y-0.5 inset-x-0 bg-emerald/10" />
+                        )}
+                        {(isStart || isEnd) && inRange && (
+                          <span className={`absolute inset-y-0.5 ${isStart ? 'left-1/2 right-0' : 'right-1/2 left-0'} bg-emerald/10`} />
+                        )}
+                        {(isStart || isEnd) && (
+                          <span className="absolute inset-1 rounded-lg bg-emerald shadow-[0_0_12px_rgba(16,185,129,0.35)]" />
+                        )}
+                        <span className={`relative z-10 ${(isStart || isEnd) ? 'text-ink-900 font-bold' : ''}`}>
+                          {date.getDate()}
+                        </span>
+                        {isToday && !(isStart || isEnd) && (
+                          <span className="absolute bottom-1 w-1 h-1 rounded-full bg-emerald" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer fixo */}
+            <div className="border-t border-white/[0.06] px-4 py-3 sm:px-3 sm:py-2.5 flex items-center justify-between gap-3 bg-white/[0.02] flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-2.5">
+              <p className="text-[11px] text-white/55 num truncate flex-1 min-w-0">
+                {pickStart && pickEnd
+                  ? formatRange(fmt(pickStart), fmt(pickEnd), lang)
+                  : pickStart
+                    ? t('pickEnd')
+                    : t('pickStart')}
               </p>
-              <div className="grid grid-cols-2 sm:flex sm:flex-col gap-0.5">
-                {PRESETS.map(p => {
-                  const isActive = preset === p.key;
-                  return (
-                    <button
-                      key={p.key}
-                      onClick={() => handlePreset(p.key)}
-                      className={`text-left px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition flex items-center justify-between
-                        ${isActive
-                          ? 'bg-emerald/15 text-emerald'
-                          : 'text-white/70 hover:bg-white/[0.04] hover:text-white'}
-                      `}
-                    >
-                      <span className="truncate">{t(p.key)}</span>
-                      {isActive && <Check className="w-3 h-3 flex-shrink-0 ml-1" strokeWidth={3} />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Calendário */}
-            <div className="p-3 w-full sm:w-[300px]">
-              <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <button
-                  onClick={goPrevMonth}
-                  className="w-7 h-7 rounded-lg border border-white/10 hover:border-white/30 text-white/60 hover:text-white flex items-center justify-center transition"
-                  aria-label="Mês anterior"
+                  onClick={handleCancel}
+                  className="px-3.5 py-2 sm:py-1.5 rounded-lg text-[12px] font-semibold text-white/60 hover:text-white border border-white/10 hover:border-white/30 transition"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  {t('cancel')}
                 </button>
-                <p className="text-[13px] font-bold tracking-tight capitalize">{monthLabel}</p>
                 <button
-                  onClick={goNextMonth}
-                  className="w-7 h-7 rounded-lg border border-white/10 hover:border-white/30 text-white/60 hover:text-white flex items-center justify-center transition"
-                  aria-label="Próximo mês"
+                  onClick={handleApply}
+                  disabled={!pickStart || !pickEnd}
+                  className="px-4 py-2 sm:py-1.5 rounded-lg text-[12px] font-bold bg-emerald text-ink-900 hover:bg-emerald-glow transition disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} />
+                  {t('apply')}
                 </button>
-              </div>
-
-              <div className="grid grid-cols-7 gap-y-1 mb-1">
-                {weekDays.map((d, i) => (
-                  <div key={i} className="text-center text-[9px] font-bold uppercase tracking-wider text-white/35 py-1">
-                    {d}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-0">
-                {grid.flat().map((date, i) => {
-                  const inCurrentMonth = date.getMonth() === viewMonth.getMonth();
-                  const isToday = sameDay(date, todayFn());
-                  const isStart = sameDay(date, previewStart);
-                  const isEnd = sameDay(date, effectiveEnd);
-                  const inRange = previewStart && effectiveEnd && isBetween(date, previewStart, effectiveEnd);
-                  const isFuture = date > todayFn();
-
-                  let cls = 'h-8 w-full flex items-center justify-center text-[12px] font-medium relative transition select-none ';
-                  if (isFuture) cls += 'text-white/20 cursor-not-allowed ';
-                  else if (!inCurrentMonth) cls += 'text-white/25 hover:text-white/50 cursor-pointer ';
-                  else cls += 'text-white/85 hover:text-white cursor-pointer ';
-
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      disabled={isFuture}
-                      onClick={() => handleDayClick(date)}
-                      onMouseEnter={() => !pickEnd && pickStart && setHoverDate(date)}
-                      className={cls}
-                      aria-label={fmt(date)}
-                      aria-pressed={isStart || isEnd}
-                    >
-                      {/* Range background */}
-                      {inRange && !isStart && !isEnd && (
-                        <span className="absolute inset-y-0.5 inset-x-0 bg-emerald/10" />
-                      )}
-                      {(isStart || isEnd) && inRange && (
-                        <span className={`absolute inset-y-0.5 ${isStart ? 'left-1/2 right-0' : 'right-1/2 left-0'} bg-emerald/10`} />
-                      )}
-
-                      {/* Endpoint pill */}
-                      {(isStart || isEnd) && (
-                        <span className="absolute inset-1 rounded-lg bg-emerald shadow-[0_0_12px_rgba(16,185,129,0.35)]" />
-                      )}
-
-                      <span className={`relative z-10 ${(isStart || isEnd) ? 'text-ink-900 font-bold' : ''}`}>
-                        {date.getDate()}
-                      </span>
-                      {isToday && !(isStart || isEnd) && (
-                        <span className="absolute bottom-1 w-1 h-1 rounded-full bg-emerald" />
-                      )}
-                    </button>
-                  );
-                })}
               </div>
             </div>
           </div>
-
-          {/* Footer */}
-          <div className="border-t border-white/[0.06] px-3 py-2.5 flex items-center justify-between gap-3 bg-white/[0.02]">
-            <p className="text-[11px] text-white/55 num truncate">
-              {pickStart && pickEnd
-                ? formatRange(fmt(pickStart), fmt(pickEnd), lang)
-                : pickStart
-                  ? t('pickEnd')
-                  : t('pickStart')}
-            </p>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={handleCancel}
-                className="px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white/60 hover:text-white border border-white/10 hover:border-white/30 transition"
-              >
-                {t('cancel')}
-              </button>
-              <button
-                onClick={handleApply}
-                disabled={!pickStart || !pickEnd}
-                className="px-3.5 py-1.5 rounded-lg text-[12px] font-bold bg-emerald text-ink-900 hover:bg-emerald-glow transition disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {t('apply')}
-              </button>
-            </div>
-          </div>
-        </div>
+        </>
       )}
     </div>
   );

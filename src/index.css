@@ -69,6 +69,11 @@
   to   { transform: translateX(0); }
 }
 
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
 /* MapLibre overrides — dark UI */
 .maplibregl-ctrl-group {
   background: rgba(13, 13, 13, 0.85) !important;
