@@ -44,8 +44,11 @@ export const getCPL = (cost_per_result, spend, leads) => {
   return 0;
 };
 
-export const currency = (v) =>
-  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v || 0);
+// Locale apropriado para a moeda. BRL → pt-BR (R$), USD → en-US ($).
+const localeFor = (code) => (code === 'BRL' ? 'pt-BR' : 'en-US');
+
+export const currency = (v, code = 'USD') =>
+  new Intl.NumberFormat(localeFor(code), { style: 'currency', currency: code }).format(v || 0);
 
 export const number = (v) =>
   new Intl.NumberFormat('pt-BR').format(v || 0);

@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { X, Sparkles, Zap, AlertTriangle, Eye, MousePointerClick, Users, DollarSign, Wallet, Activity, Layers, MapPin } from 'lucide-react';
 import { useI18n } from '../hooks/useI18n';
-import { getLeads, getCPL, currency, number, percent } from '../utils/format';
+import { useCurrency } from '../hooks/useCurrency';
+import { getLeads, getCPL, number, percent } from '../utils/format';
 
 const extractSrc = (html) => {
   const match = html?.match(/src="([^"]+)"/);
@@ -37,6 +38,7 @@ function MetricRow({ icon: Icon, label, value, accent = false }) {
 
 export default function AdDetailDrawer({ ad, performance, onClose, datePresetLabel }) {
   const { t } = useI18n();
+  const { currency } = useCurrency();
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose(); };

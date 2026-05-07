@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Users, DollarSign, Wallet, MousePointerClick, Eye, Target, Loader2 } from 'lucide-react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -13,17 +13,9 @@ const MapChart = lazy(() => import('./components/MapChart'));
 import { useDashboard } from './hooks/useDashboard';
 import { useAds } from './hooks/useAds';
 import { useI18n } from './hooks/useI18n';
+import { CurrencyProvider, useCurrency } from './hooks/useCurrency';
 import { fetchClients } from './services/api';
-import { currency, number, percent } from './utils/format';
-
-const KPI_DEFS = [
-  { titleKey: 'kpi_leads_title',       helpKey: 'kpi_leads_help',       icon: Users,             metricKind: 'higher-better', valueKey: 'leads',       format: number },
-  { titleKey: 'kpi_cpl_title',         helpKey: 'kpi_cpl_help',         icon: DollarSign,        metricKind: 'lower-better',  valueKey: 'cpl',         format: (v) => v > 0 ? currency(v) : '—' },
-  { titleKey: 'kpi_spend_title',       helpKey: 'kpi_spend_help',       icon: Wallet,            metricKind: 'neutral',       valueKey: 'spend',       format: currency },
-  { titleKey: 'kpi_ctr_title',         helpKey: 'kpi_ctr_help',         icon: MousePointerClick, metricKind: 'higher-better', valueKey: 'ctr',         format: percent },
-  { titleKey: 'kpi_impressions_title', helpKey: 'kpi_impressions_help', icon: Eye,               metricKind: 'higher-better', valueKey: 'impressions', format: number },
-  { titleKey: 'kpi_reach_title',       helpKey: 'kpi_reach_help',       icon: Target,            metricKind: 'higher-better', valueKey: 'reach',       format: number }
-];
+import { number, percent } from './utils/format';
 
 // Restaura preset/range salvos para sobreviver entre sessões
 const initialDateState = () => {
@@ -34,54 +26,29 @@ const initialDateState = () => {
   return { preset: 'last_30d', customRange: null };
 };
 
-export default function App() {
-  const [{ preset: datePreset, customRange }, setDateState] = useState(initialDateState);
-  const [clients, setClients] = useState([]);
-  const [selectedClient, setSelectedClient] = useState(() => localStorage.getItem('selectedClient'));
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => localStorage.getItem('sidebarCollapsed') === '1'
-  );
+// Conteúdo do dashboard, separado para que possa consumir useCurrency dentro do Provider
+function DashboardContent({
+  datePreset, customRange, onDateChange,
+  selectedClient, currentClient,
+  clients, sidebarCollapsed, toggleSidebar, handleSelectClient
+}) {
   const { t } = useI18n();
+  const { currency } = useCurrency();
 
-  const toggleSidebar = () => {
-    setSidebarCollapsed(prev => {
-      const next = !prev;
-      try { localStorage.setItem('sidebarCollapsed', next ? '1' : '0'); } catch {}
-      return next;
-    });
-  };
-
-  const handleDateChange = ({ preset, customRange }) => {
-    const next = { preset, customRange };
-    setDateState(next);
-    try { localStorage.setItem('dateState', JSON.stringify(next)); } catch {}
-  };
+  // KPI_DEFS depende da função currency contextual — recomputado quando troca de moeda
+  const KPI_DEFS = useMemo(() => [
+    { titleKey: 'kpi_leads_title',       helpKey: 'kpi_leads_help',       icon: Users,             metricKind: 'higher-better', valueKey: 'leads',       format: number },
+    { titleKey: 'kpi_cpl_title',         helpKey: 'kpi_cpl_help',         icon: DollarSign,        metricKind: 'lower-better',  valueKey: 'cpl',         format: (v) => v > 0 ? currency(v) : '—' },
+    { titleKey: 'kpi_spend_title',       helpKey: 'kpi_spend_help',       icon: Wallet,            metricKind: 'neutral',       valueKey: 'spend',       format: currency },
+    { titleKey: 'kpi_ctr_title',         helpKey: 'kpi_ctr_help',         icon: MousePointerClick, metricKind: 'higher-better', valueKey: 'ctr',         format: percent },
+    { titleKey: 'kpi_impressions_title', helpKey: 'kpi_impressions_help', icon: Eye,               metricKind: 'higher-better', valueKey: 'impressions', format: number },
+    { titleKey: 'kpi_reach_title',       helpKey: 'kpi_reach_help',       icon: Target,            metricKind: 'higher-better', valueKey: 'reach',       format: number }
+  ], [currency]);
 
   const { overview, trend, campaigns, geo, loading, error, lastUpdated, refetch } = useDashboard(datePreset, selectedClient, customRange);
   const { ads, loading: adsLoading, error: adsError, rateLimited: adsRateLimited, tokenExpired: adsTokenExpired } = useAds(datePreset, selectedClient, customRange);
 
   const isTokenExpired = adsTokenExpired || (error && error.includes(t('tokenExpiredTitle')));
-
-  useEffect(() => {
-    fetchClients().then(d => {
-      const list = d.clients || [];
-      setClients(list);
-      if (!selectedClient || !list.find(c => c.slug === selectedClient)) {
-        const initial = d.default || list[0]?.slug;
-        if (initial) {
-          setSelectedClient(initial);
-          localStorage.setItem('selectedClient', initial);
-        }
-      }
-    });
-  }, []);
-
-  const handleSelectClient = (slug) => {
-    setSelectedClient(slug);
-    localStorage.setItem('selectedClient', slug);
-  };
-
-  const currentClient = clients.find(c => c.slug === selectedClient);
 
   return (
     <div className="relative min-h-screen z-10">
@@ -102,7 +69,7 @@ export default function App() {
           clientName={currentClient?.name || 'Performance'}
           datePreset={datePreset}
           customRange={customRange}
-          onDateChange={handleDateChange}
+          onDateChange={onDateChange}
           lastUpdated={lastUpdated}
           loading={loading}
           onRefresh={refetch}
@@ -179,5 +146,66 @@ export default function App() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  const [{ preset: datePreset, customRange }, setDateState] = useState(initialDateState);
+  const [clients, setClients] = useState([]);
+  const [selectedClient, setSelectedClient] = useState(() => localStorage.getItem('selectedClient'));
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => localStorage.getItem('sidebarCollapsed') === '1'
+  );
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(prev => {
+      const next = !prev;
+      try { localStorage.setItem('sidebarCollapsed', next ? '1' : '0'); } catch {}
+      return next;
+    });
+  };
+
+  const handleDateChange = ({ preset, customRange }) => {
+    const next = { preset, customRange };
+    setDateState(next);
+    try { localStorage.setItem('dateState', JSON.stringify(next)); } catch {}
+  };
+
+  useEffect(() => {
+    fetchClients().then(d => {
+      const list = d.clients || [];
+      setClients(list);
+      if (!selectedClient || !list.find(c => c.slug === selectedClient)) {
+        const initial = d.default || list[0]?.slug;
+        if (initial) {
+          setSelectedClient(initial);
+          localStorage.setItem('selectedClient', initial);
+        }
+      }
+    });
+  }, []);
+
+  const handleSelectClient = (slug) => {
+    setSelectedClient(slug);
+    localStorage.setItem('selectedClient', slug);
+  };
+
+  const currentClient = clients.find(c => c.slug === selectedClient);
+  const currencyCode = currentClient?.currency || 'USD';
+
+  return (
+    <CurrencyProvider code={currencyCode}>
+      <DashboardContent
+        datePreset={datePreset}
+        customRange={customRange}
+        onDateChange={handleDateChange}
+        selectedClient={selectedClient}
+        currentClient={currentClient}
+        clients={clients}
+        sidebarCollapsed={sidebarCollapsed}
+        toggleSidebar={toggleSidebar}
+        handleSelectClient={handleSelectClient}
+      />
+    </CurrencyProvider>
   );
 }

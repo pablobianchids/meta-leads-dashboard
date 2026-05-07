@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { MapPin, ArrowDown, ArrowUp, Globe2 } from 'lucide-react';
 import { useI18n } from '../hooks/useI18n';
-import { currency, number, percent } from '../utils/format';
+import { useCurrency } from '../hooks/useCurrency';
+import { number, percent } from '../utils/format';
 
 const COLUMN_DEFS = [
   { key: 'region',      labelKey: 'location', sortable: false, align: 'left'  },
@@ -13,6 +14,7 @@ const COLUMN_DEFS = [
 
 export default function GeoTable({ regions = [] }) {
   const { t } = useI18n();
+  const { currency } = useCurrency();
   const [sortKey, setSortKey] = useState('leads');
   const [sortDir, setSortDir] = useState('desc');
 

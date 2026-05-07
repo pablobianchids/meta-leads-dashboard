@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { Lightbulb, Trophy, AlertTriangle, Rocket, FileBarChart } from 'lucide-react';
 import { useI18n } from '../hooks/useI18n';
-import { getLeads, getCPL, currency, number, percent, median } from '../utils/format';
+import { useCurrency } from '../hooks/useCurrency';
+import { getLeads, getCPL, number, percent, median } from '../utils/format';
 
 const buildAdMetrics = (ad) => {
   const ins = ad.insights;
@@ -17,7 +18,7 @@ const buildAdMetrics = (ad) => {
  * Heurísticas para gerar insights automáticos a partir do overview + ads.
  * Os dados aqui são derivados (não fazem novas chamadas).
  */
-function computeInsights(overview, ads, t) {
+function computeInsights(overview, ads, t, currency) {
   const summary = {
     Icon: FileBarChart,
     title: t('insight_summary_title'),
@@ -144,7 +145,8 @@ function InsightCard({ Icon, title, desc, tone = 'neutral' }) {
 
 export default function InsightsCards({ overview, ads }) {
   const { t } = useI18n();
-  const insights = useMemo(() => computeInsights(overview, ads || [], t), [overview, ads, t]);
+  const { currency } = useCurrency();
+  const insights = useMemo(() => computeInsights(overview, ads || [], t, currency), [overview, ads, t, currency]);
 
   return (
     <section>

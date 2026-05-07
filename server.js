@@ -31,7 +31,8 @@ if (fs.existsSync(CLIENTS_DIR)) {
           slug,
           name: parsed.CLIENT_NAME || slug,
           token,
-          account
+          account,
+          currency: (parsed.CURRENCY || 'USD').toUpperCase()
         };
       }
     });
@@ -174,7 +175,7 @@ function dateCacheKey(query) {
 
 // Lista de clientes disponíveis (para o sidebar)
 app.get('/api/clients', (req, res) => {
-  const list = Object.values(CLIENTS).map(c => ({ slug: c.slug, name: c.name }));
+  const list = Object.values(CLIENTS).map(c => ({ slug: c.slug, name: c.name, currency: c.currency }));
   res.json({ clients: list, default: DEFAULT_CLIENT });
 });
 

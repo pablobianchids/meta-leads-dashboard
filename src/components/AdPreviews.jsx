@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Play, Sparkles, Loader2, MapPin, Zap, AlertTriangle } from 'lucide-react';
-import { getLeads, getCPL, currency, number, percent, classifyAdPerformance, median } from '../utils/format';
+import { getLeads, getCPL, number, percent, classifyAdPerformance, median } from '../utils/format';
 import { useI18n } from '../hooks/useI18n';
+import { useCurrency } from '../hooks/useCurrency';
 import { useInView } from '../hooks/useInView';
 import AdFilters from './AdFilters';
 import AdDetailDrawer from './AdDetailDrawer';
@@ -74,6 +75,7 @@ function LocationBadge({ locations = [] }) {
 
 function AdRow({ ad, rank, performance, onOpen }) {
   const { t } = useI18n();
+  const { currency } = useCurrency();
   const [thumbRef, inView] = useInView({ rootMargin: '300px', once: true });
   const src = extractSrc(ad.preview);
   const ins = ad.insights;

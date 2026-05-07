@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { ArrowUp, ArrowDown, Layers } from 'lucide-react';
-import { currency, number, percent } from '../utils/format';
+import { number, percent } from '../utils/format';
 import { useI18n } from '../hooks/useI18n';
+import { useCurrency } from '../hooks/useCurrency';
 
 const COLUMN_DEFS = [
   { key: 'name',        labelKey: 'campaignName', sortable: false, align: 'left'  },
@@ -15,6 +16,7 @@ const COLUMN_DEFS = [
 
 export default function CampaignTable({ campaigns }) {
   const { t } = useI18n();
+  const { currency } = useCurrency();
   const [sortKey, setSortKey] = useState('leads');
   const [sortDir, setSortDir] = useState('desc');
 

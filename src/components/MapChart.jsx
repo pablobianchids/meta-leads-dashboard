@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import Map, { Source, Layer, Popup } from 'react-map-gl/maplibre';
 import { MapPin, Globe2 } from 'lucide-react';
-import { number, currency } from '../utils/format';
+import { number } from '../utils/format';
 import { useI18n } from '../hooks/useI18n';
+import { useCurrency } from '../hooks/useCurrency';
 
 // Centro neutro (mundo) usado apenas como fallback antes de fitBounds
 const DEFAULT_CENTER = { longitude: -30, latitude: 0, zoom: 1.5 };
@@ -64,6 +65,7 @@ export default function MapChart({ regions = [] }) {
   const [popup, setPopup] = useState(null);
   const mapRef = useRef(null);
   const { t } = useI18n();
+  const { currency } = useCurrency();
 
   const geojson = useMemo(() => ({
     type: 'FeatureCollection',
