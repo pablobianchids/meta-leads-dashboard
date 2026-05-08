@@ -7,11 +7,13 @@ import InsightsCards from './components/InsightsCards';
 import GeoTable from './components/GeoTable';
 import CampaignTable from './components/CampaignTable';
 import AdPreviews from './components/AdPreviews';
+import OperationsKPIs from './components/OperationsKPIs';
 
 // MapChart é pesado (~1MB do maplibre-gl), lazy-load reduz o bundle inicial
 const MapChart = lazy(() => import('./components/MapChart'));
 import { useDashboard } from './hooks/useDashboard';
 import { useAds } from './hooks/useAds';
+import { useOperations } from './hooks/useOperations';
 import { useI18n } from './hooks/useI18n';
 import { CurrencyProvider, useCurrency, useClientConfig } from './hooks/useCurrency';
 import { fetchClients } from './services/api';
@@ -48,6 +50,7 @@ function DashboardContent({
 
   const { overview, trend, campaigns, geo, loading, error, lastUpdated, refetch } = useDashboard(datePreset, selectedClient, customRange, leadActionType);
   const { ads, loading: adsLoading, error: adsError, rateLimited: adsRateLimited, tokenExpired: adsTokenExpired } = useAds(datePreset, selectedClient, customRange);
+  const ops = useOperations(selectedClient, datePreset, customRange, currentClient?.integrations || []);
 
   const isTokenExpired = adsTokenExpired || (error && error.includes(t('tokenExpiredTitle')));
 
@@ -114,6 +117,13 @@ function DashboardContent({
                   />
                 ))}
               </div>
+
+              <OperationsKPIs
+                data={ops.data}
+                loading={ops.loading}
+                error={ops.error}
+                enabled={ops.enabled}
+              />
 
               <InsightsCards overview={overview} ads={ads} />
 

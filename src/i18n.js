@@ -139,7 +139,17 @@ export const TRANSLATIONS = {
     rateLimitWarning: '⏱ Meta API atingiu limite. Tentando novamente em 5 min.',
     noData: 'Sem dados',
     tokenExpiredTitle: '🔑 Token expirado',
-    tokenExpiredDesc: 'O token de acesso à Meta API deste cliente expirou. Gere um novo token e atualize a configuração.'
+    tokenExpiredDesc: 'O token de acesso à Meta API deste cliente expirou. Gere um novo token e atualize a configuração.',
+
+    // Operations (Clinicorp)
+    operationsTitle: 'Operacional · Clinicorp',
+    operationsError: 'Erro ao carregar dados do Clinicorp',
+    op_scheduled: 'Agendadas',
+    op_completed: 'Realizadas',
+    op_cancelled: 'Canceladas',
+    op_new_patients: 'Novos pacientes',
+    op_total_visits: 'Atendimentos',
+    op_attendance: 'Comparecimento'
   },
   en: {
     // Header
@@ -281,7 +291,17 @@ export const TRANSLATIONS = {
     rateLimitWarning: '⏱ Meta API rate limit reached. Retrying in 5 min.',
     noData: 'No data',
     tokenExpiredTitle: '🔑 Token expired',
-    tokenExpiredDesc: 'This client\'s Meta API access token has expired. Generate a new token and update the configuration.'
+    tokenExpiredDesc: 'This client\'s Meta API access token has expired. Generate a new token and update the configuration.',
+
+    // Operations (Clinicorp)
+    operationsTitle: 'Operations · Clinicorp',
+    operationsError: 'Error loading Clinicorp data',
+    op_scheduled: 'Scheduled',
+    op_completed: 'Completed',
+    op_cancelled: 'Cancelled',
+    op_new_patients: 'New patients',
+    op_total_visits: 'Total visits',
+    op_attendance: 'Attendance'
   }
 };
 

@@ -27,13 +27,23 @@ if (fs.existsSync(CLIENTS_DIR)) {
       const isValidToken = token && token.startsWith('EA') && token.length > 50;
       const isValidAccount = account && /^\d+$/.test(account);
       if (isValidToken && isValidAccount) {
+        const integrations = (parsed.INTEGRATIONS || 'meta')
+          .split(',')
+          .map(s => s.trim().toLowerCase())
+          .filter(Boolean);
         CLIENTS[slug] = {
           slug,
           name: parsed.CLIENT_NAME || slug,
           token,
           account,
           currency: (parsed.CURRENCY || 'USD').toUpperCase(),
-          leadActionType: parsed.META_LEAD_ACTION_TYPE || null
+          leadActionType: parsed.META_LEAD_ACTION_TYPE || null,
+          integrations,
+          // Credenciais de integrações extras (não expostas no /api/clients)
+          clinicorp: integrations.includes('clinicorp') ? {
+            user: parsed.CLINICORP_USER || null,
+            token: parsed.CLINICORP_TOKEN || null
+          } : null
         };
       }
     });
@@ -180,9 +190,49 @@ app.get('/api/clients', (req, res) => {
     slug: c.slug,
     name: c.name,
     currency: c.currency,
-    leadActionType: c.leadActionType
+    leadActionType: c.leadActionType,
+    integrations: c.integrations || []
   }));
   res.json({ clients: list, default: DEFAULT_CLIENT });
+});
+
+// Métricas operacionais (Clinicorp e futuras integrações). Só responde
+// se o cliente tem a integração 'clinicorp' habilitada no env.
+app.get('/api/operations', async (req, res) => {
+  const client = resolveClient(req);
+  if (!client) return res.status(400).json({ error: { message: 'Cliente não encontrado' } });
+  if (!client.integrations?.includes('clinicorp')) {
+    return res.status(404).json({ error: { message: 'Integração Clinicorp não habilitada para este cliente' } });
+  }
+
+  // Resolve {since, until} a partir da query (preset ou range custom)
+  const params = buildDateParams(req.query);
+  let range;
+  if (params.time_range) {
+    range = JSON.parse(params.time_range);
+  } else {
+    // Para preset, derivar usando getPreviousRange-like? Vamos calcular rapidamente:
+    const today = new Date();
+    const fmt = (d) => d.toISOString().slice(0, 10);
+    const adj = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
+    switch (params.date_preset) {
+      case 'today':            range = { since: fmt(today), until: fmt(today) }; break;
+      case 'yesterday':        range = { since: fmt(adj(-1)), until: fmt(adj(-1)) }; break;
+      case 'last_7d':          range = { since: fmt(adj(-7)), until: fmt(adj(-1)) }; break;
+      case 'last_30d':         range = { since: fmt(adj(-30)), until: fmt(adj(-1)) }; break;
+      case 'this_month':       range = { since: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), until: fmt(today) }; break;
+      case 'this_year':        range = { since: fmt(new Date(today.getFullYear(), 0, 1)), until: fmt(today) }; break;
+      default:                 range = { since: fmt(adj(-30)), until: fmt(adj(-1)) };
+    }
+  }
+
+  try {
+    const { getOperationsOverview } = require('./integrations/clinicorp/service');
+    const data = await getOperationsOverview(client.clinicorp, range);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
 });
 
 app.get('/api/health', (req, res) => {
