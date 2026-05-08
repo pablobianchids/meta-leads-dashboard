@@ -14,17 +14,25 @@ const LEAD_PRIORITY = [
   'onsite_conversion.total_messaging_connection',
 ];
 
-export const getLeads = (actions, cost_per_result) => {
+export const getLeads = (actions, cost_per_result, customType = null) => {
   if (!Array.isArray(actions)) return 0;
 
-  // 1. Usar o tipo que a Meta definiu como resultado da campanha
+  // 1. Tipo customizado (configurado por cliente em META_LEAD_ACTION_TYPE).
+  //    Necessário quando o objetivo da campanha não é "lead" tradicional, ex:
+  //    clínicas que convertem via Messenger (messaging_conversation_started_7d).
+  if (customType) {
+    const match = actions.find(x => x.action_type === customType);
+    if (match) return parseInt(match.value);
+  }
+
+  // 2. Usar o tipo que a Meta definiu como resultado da campanha
   const resultType = getResultActionType(cost_per_result);
   if (resultType) {
     const match = actions.find(x => x.action_type === resultType);
     if (match) return parseInt(match.value);
   }
 
-  // 2. Fallback pela ordem de prioridade
+  // 3. Fallback pela ordem de prioridade
   for (const type of LEAD_PRIORITY) {
     const match = actions.find(x => x.action_type === type);
     if (match) return parseInt(match.value);
@@ -106,11 +114,11 @@ export const isTrendGood = (trend, kind) => {
  * Classifica o desempenho de um ad em good/watch/critical baseado no
  * CPL e CTR comparados à mediana do conjunto. Retorna 'watch' como fallback.
  */
-export const classifyAdPerformance = (ad, stats) => {
+export const classifyAdPerformance = (ad, stats, leadActionType = null) => {
   const ins = ad.insights;
   if (!ins) return 'watch';
 
-  const leads = getLeads(ins.actions, ins.cost_per_result);
+  const leads = getLeads(ins.actions, ins.cost_per_result, leadActionType);
   const spend = parseFloat(ins.spend || 0);
   const cpl = getCPL(ins.cost_per_result, spend, leads);
   const ctr = parseFloat(ins.ctr || 0);

@@ -1,19 +1,38 @@
 import { createContext, useContext, useMemo } from 'react';
 import { currency as formatWithCode } from '../utils/format';
 
-const CurrencyContext = createContext({ code: 'USD', currency: (v) => formatWithCode(v, 'USD') });
-
 /**
- * Provider que fornece a função currency() já contextualizada com o code do
- * cliente atual. Componentes consomem via useCurrency() e não precisam
- * passar o code manualmente.
+ * Provider que expõe configurações por cliente:
+ *  - currency.code / currency()
+ *  - leadActionType (action_type customizado da Meta para "lead")
+ *
+ * Receba o objeto `client` retornado por /api/clients. Componentes consomem
+ * via useCurrency() (compat) ou useClientConfig() (mais granular).
  */
-export function CurrencyProvider({ code = 'USD', children }) {
-  const value = useMemo(() => ({
-    code,
-    currency: (v) => formatWithCode(v, code)
-  }), [code]);
-  return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
+const ClientConfigContext = createContext({
+  currencyCode: 'USD',
+  currency: (v) => formatWithCode(v, 'USD'),
+  leadActionType: null
+});
+
+export function CurrencyProvider({ client, children }) {
+  const value = useMemo(() => {
+    const code = (client?.currency || 'USD').toUpperCase();
+    return {
+      currencyCode: code,
+      currency: (v) => formatWithCode(v, code),
+      leadActionType: client?.leadActionType || null
+    };
+  }, [client?.currency, client?.leadActionType]);
+
+  return <ClientConfigContext.Provider value={value}>{children}</ClientConfigContext.Provider>;
 }
 
-export const useCurrency = () => useContext(CurrencyContext);
+// API pública
+export const useClientConfig = () => useContext(ClientConfigContext);
+
+// Retrocompat: usado em vários componentes
+export const useCurrency = () => {
+  const ctx = useContext(ClientConfigContext);
+  return { code: ctx.currencyCode, currency: ctx.currency };
+};

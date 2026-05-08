@@ -13,7 +13,7 @@ const MapChart = lazy(() => import('./components/MapChart'));
 import { useDashboard } from './hooks/useDashboard';
 import { useAds } from './hooks/useAds';
 import { useI18n } from './hooks/useI18n';
-import { CurrencyProvider, useCurrency } from './hooks/useCurrency';
+import { CurrencyProvider, useCurrency, useClientConfig } from './hooks/useCurrency';
 import { fetchClients } from './services/api';
 import { number, percent } from './utils/format';
 
@@ -34,6 +34,7 @@ function DashboardContent({
 }) {
   const { t } = useI18n();
   const { currency } = useCurrency();
+  const { leadActionType } = useClientConfig();
 
   // KPI_DEFS depende da função currency contextual — recomputado quando troca de moeda
   const KPI_DEFS = useMemo(() => [
@@ -45,7 +46,7 @@ function DashboardContent({
     { titleKey: 'kpi_reach_title',       helpKey: 'kpi_reach_help',       icon: Target,            metricKind: 'higher-better', valueKey: 'reach',       format: number }
   ], [currency]);
 
-  const { overview, trend, campaigns, geo, loading, error, lastUpdated, refetch } = useDashboard(datePreset, selectedClient, customRange);
+  const { overview, trend, campaigns, geo, loading, error, lastUpdated, refetch } = useDashboard(datePreset, selectedClient, customRange, leadActionType);
   const { ads, loading: adsLoading, error: adsError, rateLimited: adsRateLimited, tokenExpired: adsTokenExpired } = useAds(datePreset, selectedClient, customRange);
 
   const isTokenExpired = adsTokenExpired || (error && error.includes(t('tokenExpiredTitle')));
@@ -191,10 +192,9 @@ export default function App() {
   };
 
   const currentClient = clients.find(c => c.slug === selectedClient);
-  const currencyCode = currentClient?.currency || 'USD';
 
   return (
-    <CurrencyProvider code={currencyCode}>
+    <CurrencyProvider client={currentClient}>
       <DashboardContent
         datePreset={datePreset}
         customRange={customRange}

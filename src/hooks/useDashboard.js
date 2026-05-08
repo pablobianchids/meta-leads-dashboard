@@ -4,11 +4,11 @@ import { getLeads, getCPL, computeTrend } from '../utils/format';
 import { getCoords } from '../utils/geo';
 import { useI18n } from './useI18n';
 
-const buildOverview = (raw) => {
+const buildOverview = (raw, leadActionType) => {
   if (!raw?.data?.[0]) return null;
   const d = raw.data[0];
   const spend = parseFloat(d.spend || 0);
-  const leads = getLeads(d.actions, d.cost_per_result);
+  const leads = getLeads(d.actions, d.cost_per_result, leadActionType);
   return {
     impressions: parseInt(d.impressions || 0),
     reach: parseInt(d.reach || 0),
@@ -39,11 +39,11 @@ const calcTrend = (current, previous) => {
   };
 };
 
-const processCampaigns = (data) => {
+const processCampaigns = (data, leadActionType) => {
   if (!data?.data) return [];
   return data.data.map(d => {
     const spend = parseFloat(d.spend || 0);
-    const leads = getLeads(d.actions, d.cost_per_result);
+    const leads = getLeads(d.actions, d.cost_per_result, leadActionType);
     return {
       id: d.campaign_id,
       name: d.campaign_name,
@@ -59,23 +59,23 @@ const processCampaigns = (data) => {
   });
 };
 
-const processDaily = (data) => {
+const processDaily = (data, leadActionType) => {
   if (!data?.data) return [];
   return data.data.map(d => ({
     date: d.date_start,
-    leads: getLeads(d.actions, d.cost_per_result),
+    leads: getLeads(d.actions, d.cost_per_result, leadActionType),
     spend: parseFloat(d.spend || 0),
     impressions: parseInt(d.impressions || 0),
     clicks: parseInt(d.clicks || 0),
   }));
 };
 
-const processGeo = (data) => {
+const processGeo = (data, leadActionType) => {
   if (!data?.data) return [];
   return data.data
     .map(d => {
       const spend = parseFloat(d.spend || 0);
-      const leads = getLeads(d.actions, d.cost_per_result);
+      const leads = getLeads(d.actions, d.cost_per_result, leadActionType);
       const coords = getCoords(d.region);
       if (!coords || leads === 0) return null;
       const clicks = parseInt(d.clicks || 0);
@@ -96,7 +96,7 @@ const processGeo = (data) => {
     .sort((a, b) => b.leads - a.leads);
 };
 
-export const useDashboard = (datePreset, client, customRange) => {
+export const useDashboard = (datePreset, client, customRange, leadActionType) => {
   const { t } = useI18n();
   const [overview, setOverview] = useState(null);
   const [trend, setTrend] = useState({});
@@ -130,21 +130,21 @@ export const useDashboard = (datePreset, client, customRange) => {
         throw new Error(ov.error.message || JSON.stringify(ov.error));
       }
 
-      const current = buildOverview(ov.current);
-      const previous = buildOverview(ov.previous);
+      const current = buildOverview(ov.current, leadActionType);
+      const previous = buildOverview(ov.previous, leadActionType);
 
       setOverview(current);
       setTrend(calcTrend(current, previous));
-      setCampaigns(processCampaigns(ca));
-      setDaily(processDaily(da));
-      setGeo(processGeo(ge));
+      setCampaigns(processCampaigns(ca, leadActionType));
+      setDaily(processDaily(da, leadActionType));
+      setGeo(processGeo(ge, leadActionType));
       setLastUpdated(new Date());
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [datePreset, client, customRange?.since, customRange?.until, t]);
+  }, [datePreset, client, customRange?.since, customRange?.until, leadActionType, t]);
 
   useEffect(() => {
     if (!client) return;

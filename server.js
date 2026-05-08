@@ -32,7 +32,8 @@ if (fs.existsSync(CLIENTS_DIR)) {
           name: parsed.CLIENT_NAME || slug,
           token,
           account,
-          currency: (parsed.CURRENCY || 'USD').toUpperCase()
+          currency: (parsed.CURRENCY || 'USD').toUpperCase(),
+          leadActionType: parsed.META_LEAD_ACTION_TYPE || null
         };
       }
     });
@@ -175,7 +176,12 @@ function dateCacheKey(query) {
 
 // Lista de clientes disponíveis (para o sidebar)
 app.get('/api/clients', (req, res) => {
-  const list = Object.values(CLIENTS).map(c => ({ slug: c.slug, name: c.name, currency: c.currency }));
+  const list = Object.values(CLIENTS).map(c => ({
+    slug: c.slug,
+    name: c.name,
+    currency: c.currency,
+    leadActionType: c.leadActionType
+  }));
   res.json({ clients: list, default: DEFAULT_CLIENT });
 });
 

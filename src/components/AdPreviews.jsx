@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { Play, Sparkles, Loader2, MapPin, Zap, AlertTriangle } from 'lucide-react';
 import { getLeads, getCPL, number, percent, classifyAdPerformance, median } from '../utils/format';
 import { useI18n } from '../hooks/useI18n';
-import { useCurrency } from '../hooks/useCurrency';
+import { useCurrency, useClientConfig } from '../hooks/useCurrency';
 import { useInView } from '../hooks/useInView';
 import AdFilters from './AdFilters';
 import AdDetailDrawer from './AdDetailDrawer';
@@ -76,11 +76,12 @@ function LocationBadge({ locations = [] }) {
 function AdRow({ ad, rank, performance, onOpen }) {
   const { t } = useI18n();
   const { currency } = useCurrency();
+  const { leadActionType } = useClientConfig();
   const [thumbRef, inView] = useInView({ rootMargin: '300px', once: true });
   const src = extractSrc(ad.preview);
   const ins = ad.insights;
 
-  const leads = ins ? getLeads(ins.actions, ins.cost_per_result) : 0;
+  const leads = ins ? getLeads(ins.actions, ins.cost_per_result, leadActionType) : 0;
   const spend = ins ? parseFloat(ins.spend || 0) : 0;
   const cpl   = ins ? getCPL(ins.cost_per_result, spend, leads) : 0;
   const ctr   = ins ? parseFloat(ins.ctr || 0) : 0;
@@ -180,6 +181,7 @@ function AdRow({ ad, rank, performance, onOpen }) {
 
 export default function AdPreviews({ datePreset, ads = [], loading, error, rateLimited, tokenExpired }) {
   const { t } = useI18n();
+  const { leadActionType } = useClientConfig();
 
   // Filtros
   const [search, setSearch] = useState('');
@@ -198,7 +200,7 @@ export default function AdPreviews({ datePreset, ads = [], loading, error, rateL
     for (const ad of ads) {
       const ins = ad.insights;
       if (!ins) continue;
-      const leads = getLeads(ins.actions, ins.cost_per_result);
+      const leads = getLeads(ins.actions, ins.cost_per_result, leadActionType);
       const spend = parseFloat(ins.spend || 0);
       const cpl = getCPL(ins.cost_per_result, spend, leads);
       if (cpl > 0) cpls.push(cpl);
@@ -206,7 +208,7 @@ export default function AdPreviews({ datePreset, ads = [], loading, error, rateL
       if (ctr > 0) ctrs.push(ctr);
     }
     return { medianCpl: median(cpls), medianCtr: median(ctrs) };
-  }, [ads]);
+  }, [ads, leadActionType]);
 
   // Lista de localizações disponíveis (para o select)
   const allLocations = useMemo(() => {
@@ -242,10 +244,9 @@ export default function AdPreviews({ datePreset, ads = [], loading, error, rateL
   const ranked = useMemo(() => {
     const arr = [...filtered];
     arr.sort((a, b) => {
-      const ma = metricForSort(a, sort);
-      const mb = metricForSort(b, sort);
+      const ma = metricForSort(a, sort, leadActionType);
+      const mb = metricForSort(b, sort, leadActionType);
       if (sort === 'cpl') {
-        // CPL: menor é melhor (zero vai para o final)
         if (ma === 0) return 1;
         if (mb === 0) return -1;
         return ma - mb;
@@ -253,7 +254,7 @@ export default function AdPreviews({ datePreset, ads = [], loading, error, rateL
       return mb - ma;
     });
     return arr;
-  }, [filtered, sort]);
+  }, [filtered, sort, leadActionType]);
 
   const handleClearFilters = () => {
     setSearch('');
@@ -338,7 +339,7 @@ export default function AdPreviews({ datePreset, ads = [], loading, error, rateL
                 key={ad.id}
                 ad={ad}
                 rank={i + 1}
-                performance={classifyAdPerformance(ad, stats)}
+                performance={classifyAdPerformance(ad, stats, leadActionType)}
                 onOpen={handleOpen}
               />
             ))}
@@ -358,12 +359,12 @@ export default function AdPreviews({ datePreset, ads = [], loading, error, rateL
   );
 }
 
-function metricForSort(ad, sort) {
+function metricForSort(ad, sort, leadActionType) {
   const ins = ad.insights;
   if (!ins) return 0;
-  if (sort === 'leads') return getLeads(ins.actions, ins.cost_per_result);
+  if (sort === 'leads') return getLeads(ins.actions, ins.cost_per_result, leadActionType);
   if (sort === 'cpl') {
-    const leads = getLeads(ins.actions, ins.cost_per_result);
+    const leads = getLeads(ins.actions, ins.cost_per_result, leadActionType);
     const spend = parseFloat(ins.spend || 0);
     return getCPL(ins.cost_per_result, spend, leads);
   }

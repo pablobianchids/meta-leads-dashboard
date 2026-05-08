@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { Lightbulb, Trophy, AlertTriangle, Rocket, FileBarChart } from 'lucide-react';
 import { useI18n } from '../hooks/useI18n';
-import { useCurrency } from '../hooks/useCurrency';
+import { useCurrency, useClientConfig } from '../hooks/useCurrency';
 import { getLeads, getCPL, number, percent, median } from '../utils/format';
 
-const buildAdMetrics = (ad) => {
+const buildAdMetrics = (ad, leadActionType) => {
   const ins = ad.insights;
-  const leads = ins ? getLeads(ins.actions, ins.cost_per_result) : 0;
+  const leads = ins ? getLeads(ins.actions, ins.cost_per_result, leadActionType) : 0;
   const spend = ins ? parseFloat(ins.spend || 0) : 0;
   const cpl = ins ? getCPL(ins.cost_per_result, spend, leads) : 0;
   const ctr = ins ? parseFloat(ins.ctr || 0) : 0;
@@ -18,7 +18,7 @@ const buildAdMetrics = (ad) => {
  * Heurísticas para gerar insights automáticos a partir do overview + ads.
  * Os dados aqui são derivados (não fazem novas chamadas).
  */
-function computeInsights(overview, ads, t, currency) {
+function computeInsights(overview, ads, t, currency, leadActionType) {
   const summary = {
     Icon: FileBarChart,
     title: t('insight_summary_title'),
@@ -30,7 +30,7 @@ function computeInsights(overview, ads, t, currency) {
     tone: 'neutral'
   };
 
-  const metrics = ads.map(buildAdMetrics);
+  const metrics = ads.map(ad => buildAdMetrics(ad, leadActionType));
 
   // Best ad: maior número de leads (ties → menor CPL)
   const sortedByLeads = [...metrics].filter(m => m.leads > 0).sort((a, b) => {
@@ -146,7 +146,11 @@ function InsightCard({ Icon, title, desc, tone = 'neutral' }) {
 export default function InsightsCards({ overview, ads }) {
   const { t } = useI18n();
   const { currency } = useCurrency();
-  const insights = useMemo(() => computeInsights(overview, ads || [], t, currency), [overview, ads, t, currency]);
+  const { leadActionType } = useClientConfig();
+  const insights = useMemo(
+    () => computeInsights(overview, ads || [], t, currency, leadActionType),
+    [overview, ads, t, currency, leadActionType]
+  );
 
   return (
     <section>
