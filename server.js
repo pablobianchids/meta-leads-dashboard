@@ -45,6 +45,8 @@ if (fs.existsSync(CLIENTS_DIR)) {
             token: parsed.CLINICORP_TOKEN || null,
             subscriberId: parsed.CLINICORP_SUBSCRIBER_ID || null,
             excludeCategories: (parsed.CLINICORP_EXCLUDE_CATEGORIES || '')
+              .split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+            excludeNoteKeywords: (parsed.CLINICORP_EXCLUDE_NOTE_KEYWORDS || '')
               .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
           } : null
         };

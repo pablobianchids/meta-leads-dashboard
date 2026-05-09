@@ -64,10 +64,20 @@ const isExcludedCategory = (appointment, excludeKeywords) => {
   return excludeKeywords.some(kw => cat.includes(kw));
 };
 
+// Filtra agendamentos cuja Notes contém qualquer uma das keywords.
+// Pega compromissos internos sob uma categoria de dentista (treinamento,
+// bikefit, barbearia, calls comerciais, etc).
+const isExcludedByNotes = (appointment, excludeKeywords) => {
+  if (!excludeKeywords?.length) return false;
+  const notes = (appointment.Notes || '').toLowerCase();
+  if (!notes) return false;
+  return excludeKeywords.some(kw => notes.includes(kw));
+};
+
 async function getOperationsOverview(cfg, { since, until }) {
   if (!cfg) throw new Error('Clinicorp config missing');
 
-  const cacheKey = `operations:${cfg.subscriberId}:${since}:${until}:${(cfg.excludeCategories || []).join('|')}`;
+  const cacheKey = `operations:${cfg.subscriberId}:${since}:${until}:${(cfg.excludeCategories || []).join('|')}:${(cfg.excludeNoteKeywords || []).join('|')}`;
   const cached = getCached(cacheKey);
   if (cached) return { ...cached, _cached: true };
 
@@ -92,7 +102,7 @@ async function getOperationsOverview(cfg, { since, until }) {
 
   for (const a of list) {
     if (a.Deleted === 'X') continue;
-    if (isExcludedCategory(a, cfg.excludeCategories)) {
+    if (isExcludedCategory(a, cfg.excludeCategories) || isExcludedByNotes(a, cfg.excludeNoteKeywords)) {
       excluded++;
       continue;
     }
