@@ -42,7 +42,8 @@ if (fs.existsSync(CLIENTS_DIR)) {
           // Credenciais de integrações extras (não expostas no /api/clients)
           clinicorp: integrations.includes('clinicorp') ? {
             user: parsed.CLINICORP_USER || null,
-            token: parsed.CLINICORP_TOKEN || null
+            token: parsed.CLINICORP_TOKEN || null,
+            subscriberId: parsed.CLINICORP_SUBSCRIBER_ID || null
           } : null
         };
       }

@@ -1,33 +1,35 @@
-// Cliente HTTP da Clinicorp. Isola autenticação e baixo nível.
-// Quando a documentação for confirmada, ajustar BASE_URL e cabeçalhos aqui.
+// Cliente HTTP da Clinicorp.
+//
+// API REST documentada em https://sistema.clinicorp.com/api-docs/
+// Servidor: https://api.clinicorp.com/rest/v1
+// Auth: HTTP Basic com (Usuário API, Token API).
+// Todas as rotas exigem o param `subscriber_id` (slug da assinatura).
 
 const axios = require('axios');
 
-// Hipótese de URL base (a confirmar na doc oficial). Sobrescrevível via env.
-const DEFAULT_BASE = process.env.CLINICORP_BASE_URL || 'https://api.clinicorp.com.br/v1';
+const BASE_URL = process.env.CLINICORP_BASE_URL || 'https://api.clinicorp.com/rest/v1';
 
 /**
- * Faz uma chamada autenticada à Clinicorp.
- * @param {Object} client - { user, token } do CLINICORP_* do env
- * @param {string} path - rota relativa (ex: '/appointments')
- * @param {Object} params - querystring
+ * Faz uma chamada GET autenticada à Clinicorp.
+ * @param {Object} cfg - { user, token, subscriberId } vindo do env do cliente
+ * @param {string} path - rota relativa (ex: '/appointment/list')
+ * @param {Object} params - querystring extra
  */
-async function callClinicorp(client, path, params = {}) {
-  if (!client?.user || !client?.token) {
-    throw new Error('Clinicorp credentials missing');
+async function callClinicorp(cfg, path, params = {}) {
+  if (!cfg?.user || !cfg?.token || !cfg?.subscriberId) {
+    throw new Error('Clinicorp credentials missing (user/token/subscriberId)');
   }
-  // Hipótese: Basic Auth com user:token. Confirmar na doc.
-  const auth = Buffer.from(`${client.user}:${client.token}`).toString('base64');
-  const url = `${DEFAULT_BASE}${path}`;
+  const auth = Buffer.from(`${cfg.user}:${cfg.token}`).toString('base64');
+  const url = `${BASE_URL}${path}`;
   const { data } = await axios.get(url, {
-    params,
+    params: { subscriber_id: cfg.subscriberId, ...params },
     headers: {
       'Authorization': `Basic ${auth}`,
       'Accept': 'application/json'
     },
-    timeout: 15000
+    timeout: 20000
   });
   return data;
 }
 
-module.exports = { callClinicorp, DEFAULT_BASE };
+module.exports = { callClinicorp, BASE_URL };
