@@ -43,7 +43,9 @@ if (fs.existsSync(CLIENTS_DIR)) {
           clinicorp: integrations.includes('clinicorp') ? {
             user: parsed.CLINICORP_USER || null,
             token: parsed.CLINICORP_TOKEN || null,
-            subscriberId: parsed.CLINICORP_SUBSCRIBER_ID || null
+            subscriberId: parsed.CLINICORP_SUBSCRIBER_ID || null,
+            excludeCategories: (parsed.CLINICORP_EXCLUDE_CATEGORIES || '')
+              .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
           } : null
         };
       }
@@ -197,6 +199,52 @@ app.get('/api/clients', (req, res) => {
   res.json({ clients: list, default: DEFAULT_CLIENT });
 });
 
+// Converte preset da Meta para range {since, until} usado pela Clinicorp.
+// Suporta todos os presets do DateRangePicker do frontend.
+function presetToRange(preset) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const adj = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
+  const fmt = fmtDate;
+
+  switch (preset) {
+    case 'today':              return { since: fmt(today), until: fmt(today) };
+    case 'yesterday':          return { since: fmt(adj(-1)), until: fmt(adj(-1)) };
+    case 'last_7d':            return { since: fmt(adj(-7)), until: fmt(adj(-1)) };
+    case 'last_30d':           return { since: fmt(adj(-30)), until: fmt(adj(-1)) };
+    case 'this_week_mon_sun': {
+      const day = today.getDay() === 0 ? 7 : today.getDay();
+      return { since: fmt(adj(-(day - 1))), until: fmt(today) };
+    }
+    case 'last_week_mon_sun': {
+      const day = today.getDay() === 0 ? 7 : today.getDay();
+      const lastSun = adj(-day);
+      const lastMon = new Date(lastSun); lastMon.setDate(lastMon.getDate() - 6);
+      return { since: fmt(lastMon), until: fmt(lastSun) };
+    }
+    case 'this_month': {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      return { since: fmt(start), until: fmt(today) };
+    }
+    case 'last_month': {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0);
+      return { since: fmt(start), until: fmt(end) };
+    }
+    case 'this_quarter': {
+      const q = Math.floor(today.getMonth() / 3);
+      const start = new Date(today.getFullYear(), q * 3, 1);
+      return { since: fmt(start), until: fmt(today) };
+    }
+    case 'this_year': {
+      const start = new Date(today.getFullYear(), 0, 1);
+      return { since: fmt(start), until: fmt(today) };
+    }
+    default:
+      return { since: fmt(adj(-30)), until: fmt(adj(-1)) };
+  }
+}
+
 // Métricas operacionais (Clinicorp e futuras integrações). Só responde
 // se o cliente tem a integração 'clinicorp' habilitada no env.
 app.get('/api/operations', async (req, res) => {
@@ -206,26 +254,8 @@ app.get('/api/operations', async (req, res) => {
     return res.status(404).json({ error: { message: 'Integração Clinicorp não habilitada para este cliente' } });
   }
 
-  // Resolve {since, until} a partir da query (preset ou range custom)
-  const params = buildDateParams(req.query);
-  let range;
-  if (params.time_range) {
-    range = JSON.parse(params.time_range);
-  } else {
-    // Para preset, derivar usando getPreviousRange-like? Vamos calcular rapidamente:
-    const today = new Date();
-    const fmt = (d) => d.toISOString().slice(0, 10);
-    const adj = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d; };
-    switch (params.date_preset) {
-      case 'today':            range = { since: fmt(today), until: fmt(today) }; break;
-      case 'yesterday':        range = { since: fmt(adj(-1)), until: fmt(adj(-1)) }; break;
-      case 'last_7d':          range = { since: fmt(adj(-7)), until: fmt(adj(-1)) }; break;
-      case 'last_30d':         range = { since: fmt(adj(-30)), until: fmt(adj(-1)) }; break;
-      case 'this_month':       range = { since: fmt(new Date(today.getFullYear(), today.getMonth(), 1)), until: fmt(today) }; break;
-      case 'this_year':        range = { since: fmt(new Date(today.getFullYear(), 0, 1)), until: fmt(today) }; break;
-      default:                 range = { since: fmt(adj(-30)), until: fmt(adj(-1)) };
-    }
-  }
+  const { since, until, date_preset } = req.query;
+  const range = (since && until) ? { since, until } : presetToRange(date_preset);
 
   try {
     const { getOperationsOverview } = require('./integrations/clinicorp/service');

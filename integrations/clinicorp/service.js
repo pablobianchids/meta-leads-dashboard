@@ -56,10 +56,18 @@ async function getStatusMap(cfg) {
  * `upcoming` separa os ainda futuros (não conta na taxa de comparecimento).
  * `FirstAppointment === 'X'` marca novo paciente.
  */
+// Filtra agendamentos cuja categoria contém qualquer uma das keywords.
+// Comparação case-insensitive contra CategoryDescription.
+const isExcludedCategory = (appointment, excludeKeywords) => {
+  if (!excludeKeywords?.length) return false;
+  const cat = (appointment.CategoryDescription || '').toLowerCase();
+  return excludeKeywords.some(kw => cat.includes(kw));
+};
+
 async function getOperationsOverview(cfg, { since, until }) {
   if (!cfg) throw new Error('Clinicorp config missing');
 
-  const cacheKey = `operations:${cfg.subscriberId}:${since}:${until}`;
+  const cacheKey = `operations:${cfg.subscriberId}:${since}:${until}:${(cfg.excludeCategories || []).join('|')}`;
   const cached = getCached(cacheKey);
   if (cached) return { ...cached, _cached: true };
 
@@ -80,9 +88,14 @@ async function getOperationsOverview(cfg, { since, until }) {
   let missed = 0;
   let upcoming = 0;
   let newPatients = 0;
+  let excluded = 0;
 
   for (const a of list) {
     if (a.Deleted === 'X') continue;
+    if (isExcludedCategory(a, cfg.excludeCategories)) {
+      excluded++;
+      continue;
+    }
     scheduled++;
 
     const date = a.date ? new Date(a.date) : null;
@@ -107,6 +120,7 @@ async function getOperationsOverview(cfg, { since, until }) {
     new_patients: newPatients,
     total_visits: completed,
     attendance_rate: attendanceRate,
+    excluded_count: excluded,
     period: { since, until }
   };
 
