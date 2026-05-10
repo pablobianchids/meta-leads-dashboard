@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { presetRange } from '../utils/dateRange';
 
 const buildUrl = (path, params = {}) => {
   const qs = new URLSearchParams(
@@ -7,11 +8,15 @@ const buildUrl = (path, params = {}) => {
   return qs ? `${path}?${qs}` : path;
 };
 
+// Sempre envia {since, until} explícitos para o backend, calculados no
+// frontend para respeitar o timezone do usuário. Evita o bug em que o
+// servidor (UTC) calculava "ontem" como o dia atual no fuso BRT.
 const dateParams = (datePreset, customRange) => {
   if (datePreset === 'custom' && customRange?.since && customRange?.until) {
     return { since: customRange.since, until: customRange.until };
   }
-  return { date_preset: datePreset || 'last_30d' };
+  const { since, until } = presetRange(datePreset || 'last_30d');
+  return { since, until };
 };
 
 /**

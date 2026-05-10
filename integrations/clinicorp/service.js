@@ -56,8 +56,15 @@ async function getStatusMap(cfg) {
  * `upcoming` separa os ainda futuros (não conta na taxa de comparecimento).
  * `FirstAppointment === 'X'` marca novo paciente.
  */
+// Whitelist: se includeOnly tiver itens, SÓ categorias que contêm alguma
+// dessas keywords contam. Senão, aceita tudo (e a exclusão entra em ação).
+const matchesIncludeOnly = (appointment, includeOnlyKeywords) => {
+  if (!includeOnlyKeywords?.length) return true;
+  const cat = (appointment.CategoryDescription || '').toLowerCase();
+  return includeOnlyKeywords.some(kw => cat.includes(kw));
+};
+
 // Filtra agendamentos cuja categoria contém qualquer uma das keywords.
-// Comparação case-insensitive contra CategoryDescription.
 const isExcludedCategory = (appointment, excludeKeywords) => {
   if (!excludeKeywords?.length) return false;
   const cat = (appointment.CategoryDescription || '').toLowerCase();
@@ -77,7 +84,7 @@ const isExcludedByNotes = (appointment, excludeKeywords) => {
 async function getOperationsOverview(cfg, { since, until }) {
   if (!cfg) throw new Error('Clinicorp config missing');
 
-  const cacheKey = `operations:${cfg.subscriberId}:${since}:${until}:${(cfg.excludeCategories || []).join('|')}:${(cfg.excludeNoteKeywords || []).join('|')}`;
+  const cacheKey = `operations:${cfg.subscriberId}:${since}:${until}:${(cfg.includeOnlyCategories || []).join('|')}:${(cfg.excludeCategories || []).join('|')}:${(cfg.excludeNoteKeywords || []).join('|')}`;
   const cached = getCached(cacheKey);
   if (cached) return { ...cached, _cached: true };
 
@@ -102,7 +109,11 @@ async function getOperationsOverview(cfg, { since, until }) {
 
   for (const a of list) {
     if (a.Deleted === 'X') continue;
-    if (isExcludedCategory(a, cfg.excludeCategories) || isExcludedByNotes(a, cfg.excludeNoteKeywords)) {
+    // Whitelist primeiro (se setada): só categorias permitidas continuam.
+    // Depois excluir por categoria/notes (sob a whitelist, casos específicos).
+    if (!matchesIncludeOnly(a, cfg.includeOnlyCategories) ||
+        isExcludedCategory(a, cfg.excludeCategories) ||
+        isExcludedByNotes(a, cfg.excludeNoteKeywords)) {
       excluded++;
       continue;
     }
